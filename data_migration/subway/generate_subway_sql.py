@@ -52,8 +52,14 @@ def generate_subway_insert_sql():
                 try:
                     # 각 컬럼 데이터 추출 및 변환
                     place_code = str(row['역번호']).strip() if pd.notna(row['역번호']) else ''
-                    full_name = str(row['역사명']).strip() if pd.notna(row['역사명']) else ''
+                    raw_full_name = str(row['역사명']).strip() if pd.notna(row['역사명']) else ''
                     line_code = str(row['노선번호']).strip() if pd.notna(row['노선번호']) else ''
+                    
+                    # 역사명 처리: 마지막에 "역"이 없으면 "역" 추가
+                    if raw_full_name and not raw_full_name.endswith('역'):
+                        full_name = raw_full_name + '역'
+                    else:
+                        full_name = raw_full_name
                     
                     # 노선번호 코드에 따른 노선명 매핑
                     if line_code in line_mapping:
