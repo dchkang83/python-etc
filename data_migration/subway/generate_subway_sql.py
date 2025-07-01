@@ -60,6 +60,12 @@ def generate_subway_insert_sql():
                     if line_code in line_mapping:
                         line = line_mapping[line_code]
                         line_short = line_short_mapping[line_code]
+                        
+                        # 빈 값으로 설정된 노선은 제외
+                        if not line or line.strip() == '':
+                            print(f"⚠️  행 {index+1}: 제외된 노선번호 코드 '{line_code}' - 건너뜀")
+                            skipped_count += 1
+                            continue
                     else:
                         print(f"⚠️  행 {index+1}: 알 수 없는 노선번호 코드 '{line_code}' - 건너뜀")
                         skipped_count += 1
