@@ -65,11 +65,20 @@ def generate_subway_insert_sql():
                         skipped_count += 1
                         continue
                     
-                    # NAME 처리: 역사명에 "역"이 없으면 "역" 추가
-                    if raw_full_name and not raw_full_name.endswith('역'):
-                        name = raw_full_name + '역'
+                    # NAME 처리: 괄호 제거 후 "역" 추가
+                    # 괄호가 포함된 경우 괄호 부분 제거
+                    if '(' in raw_full_name and ')' in raw_full_name:
+                        # 괄호 시작 위치 찾기
+                        bracket_start = raw_full_name.find('(')
+                        name_without_bracket = raw_full_name[:bracket_start].strip()
                     else:
-                        name = raw_full_name
+                        name_without_bracket = raw_full_name
+                    
+                    # "역"이 없으면 "역" 추가
+                    if name_without_bracket and not name_without_bracket.endswith('역'):
+                        name = name_without_bracket + '역'
+                    else:
+                        name = name_without_bracket
                     
                     # FULL_NAME 처리: LINE + '_' + NAME 형태 (NAME에 이미 역이 포함됨)
                     full_name = f"{line}_{name}"
