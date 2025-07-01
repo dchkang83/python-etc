@@ -51,6 +51,7 @@ subway/
 ├── read_subway_data.py  # 메인 프로그램
 ├── test_subway_lines.py # 노선 딕셔너리 사용 예시
 ├── generate_subway_sql.py # SUBWAY 테이블 INSERT SQL 생성
+├── subway_line_mapping.py # 노선번호 코드별 매핑 정보
 ├── subway_insert.sql    # 생성된 INSERT SQL 파일
 ├── requirements.txt     # 필요한 라이브러리 목록
 └── README.md           # 이 파일
@@ -105,6 +106,12 @@ python test_subway_lines.py
 python generate_subway_sql.py
 ```
 
+### 노선 매핑 정보 확인
+
+```bash
+python subway_line_mapping.py
+```
+
 ### 생성된 SQL 파일 정보
 
 - **파일명**: `subway_insert.sql`
@@ -126,9 +133,19 @@ python generate_subway_sql.py
 | -         | USE_YN             | 사용 여부 (기본값: 'Y') |
 | -         | REG_DT             | 등록 일시 (NOW())       |
 
-### 노선 단축명 생성 규칙
+### 노선 매핑 방식
 
-- **숫자호선**: "3호선" → "3호선"
-- **특별 노선**: "경인선" → "경인선", "신분당선" → "신분당선"
-- **공항선**: "인천국제공항선" → "공항선"
-- **기타**: 원본 노선명 그대로 사용
+- **엑셀 노선번호 코드**를 키로 사용하여 매핑된 노선명 적용
+- **46개 노선번호 코드**에 대한 표준화된 노선명 사용
+- **노선 단축명**도 코드별로 미리 정의된 값 사용
+
+### 주요 노선 매핑 예시
+
+| 노선번호 코드 | 노선명         | 노선 단축명 |
+| ------------- | -------------- | ----------- |
+| I1101         | 경인선         | 경인선      |
+| I1103         | 3호선          | 3호선       |
+| I11D1         | 신분당선       | 신분당선    |
+| I28A1         | 인천국제공항선 | 공항선      |
+| I4105         | 분당선         | 분당선      |
+| S1102         | 2호선          | 2호선       |
