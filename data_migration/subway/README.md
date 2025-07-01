@@ -41,6 +41,7 @@ deactivate
 - 데이터 형태 및 컬럼 정보 표시
 - 처음 5행 미리보기
 - **노선번호별 노선명 딕셔너리 생성** (46개 노선)
+- **SUBWAY 테이블 INSERT SQL 생성** (1,081개 데이터)
 
 ## 파일 구조
 
@@ -49,6 +50,8 @@ subway/
 ├── subway_env/          # 가상환경 폴더
 ├── read_subway_data.py  # 메인 프로그램
 ├── test_subway_lines.py # 노선 딕셔너리 사용 예시
+├── generate_subway_sql.py # SUBWAY 테이블 INSERT SQL 생성
+├── subway_insert.sql    # 생성된 INSERT SQL 파일
 ├── requirements.txt     # 필요한 라이브러리 목록
 └── README.md           # 이 파일
 ```
@@ -93,3 +96,39 @@ python test_subway_lines.py
 - **I28A1**: 인천국제공항선
 - **I11D1**: 신분당선
 - **I41K2**: 경춘선
+
+## SUBWAY 테이블 INSERT SQL 생성
+
+### SQL 생성 실행
+
+```bash
+python generate_subway_sql.py
+```
+
+### 생성된 SQL 파일 정보
+
+- **파일명**: `subway_insert.sql`
+- **총 INSERT 문**: 1,081개
+- **처리된 데이터**: 1,081/1,087 (99.4%)
+- **제외된 데이터**: 위도/경도 정보가 없는 6개 역
+
+### 테이블 매핑 정보
+
+| 엑셀 컬럼 | SUBWAY 테이블 컬럼 | 설명                    |
+| --------- | ------------------ | ----------------------- |
+| 역번호    | PLACE_CODE         | 지하철역 고유 번호      |
+| 역사명    | FULL_NAME, NAME    | 지하철역 전체명 및 이름 |
+| 노선번호  | LINE_CODE          | 노선 코드               |
+| 노선명    | LINE               | 노선 전체명             |
+| -         | LINE_SHORT         | 노선 단축명 (자동 생성) |
+| 역위도    | LATITUDE           | 위도                    |
+| 역경도    | LONGITUDE          | 경도                    |
+| -         | USE_YN             | 사용 여부 (기본값: 'Y') |
+| -         | REG_DT             | 등록 일시 (NOW())       |
+
+### 노선 단축명 생성 규칙
+
+- **숫자호선**: "3호선" → "3호선"
+- **특별 노선**: "경인선" → "경인선", "신분당선" → "신분당선"
+- **공항선**: "인천국제공항선" → "공항선"
+- **기타**: 원본 노선명 그대로 사용
