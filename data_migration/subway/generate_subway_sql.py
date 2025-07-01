@@ -40,7 +40,7 @@ def generate_subway_insert_sql():
             f.write(f"-- 생성일시: {current_time}\n")
             f.write(f"-- 총 {len(df)}개의 지하철역 데이터\n")
             f.write("-- 노선번호 코드별 매핑된 노선명 사용\n")
-            f.write("-- FULL_NAME 형식: LINE_NAME역\n\n")
+            f.write("-- FULL_NAME 형식: LINE_NAME\n\n")
             
             # INSERT 문 시작
             f.write("INSERT INTO SUBWAY (PLACE_CODE, FULL_NAME, LINE_CODE, LINE, LINE_SHORT, NAME, LATITUDE, LONGITUDE, USE_YN, REG_DT) VALUES\n")
@@ -65,11 +65,14 @@ def generate_subway_insert_sql():
                         skipped_count += 1
                         continue
                     
-                    # NAME 처리: 역사명 그대로 사용 (역 포함)
-                    name = raw_full_name
+                    # NAME 처리: 역사명에 "역"이 없으면 "역" 추가
+                    if raw_full_name and not raw_full_name.endswith('역'):
+                        name = raw_full_name + '역'
+                    else:
+                        name = raw_full_name
                     
-                    # FULL_NAME 처리: LINE + '_' + NAME + '역' 형태
-                    full_name = f"{line}_{name}역"
+                    # FULL_NAME 처리: LINE + '_' + NAME 형태 (NAME에 이미 역이 포함됨)
+                    full_name = f"{line}_{name}"
                     
                     # 위도/경도 처리
                     latitude = float(row['역위도']) if pd.notna(row['역위도']) else 0.0
