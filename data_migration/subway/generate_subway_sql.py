@@ -31,7 +31,7 @@ def generate_subway_insert_sql():
         print(f"노선 매핑 딕셔너리: {len(line_mapping)}개 노선")
         
         # SQL 파일 생성
-        output_file = "subway_insert.sql"
+        output_file = "data_migration/subway/subway_insert.sql"
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         with open(output_file, 'w', encoding='utf-8') as f:
