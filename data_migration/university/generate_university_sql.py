@@ -18,28 +18,40 @@ def clean_str(val):
     return str(val).replace("'", "''").strip()
 
 def extract_from_first_file():
-    df = pd.read_excel(file_path1, header=11)
+    # 첫 번째 파일은 11번째 행(인덱스 10)이 실제 헤더
+    df = pd.read_excel(file_path1, header=10)
     # 컬럼명을 모두 문자열로 변환 후 strip
     df.columns = [str(c).strip() for c in df.columns]
-    print("실제 컬럼명:", list(df.columns))  # 디버깅용
+    print("첫 번째 파일 실제 컬럼명:", list(df.columns))  # 디버깅용
+    
+    # 첫 번째 파일의 실제 컬럼명에 맞게 매핑
     col_map = {
         '학제': 'TYPE',
-        '시도': 'SIDO',
+        '대학원 구분\n(부설/\n대학원대학)': 'CAMPUS',  # 본분교 정보
         '학교명': 'NAME',
-        '본분교': 'CAMPUS',
-        '학교상태': 'STATUS',
+        '시도': 'SIDO',
         '설립': 'OWNER',
-        '우편번호': 'POSTAL_CD',
         '주소': 'ADDRESS',
+        '우편번호': 'POSTAL_CD',
         '전화번호': 'TEL_NO',
         '팩스번호': 'FAX_NO',
         '홈페이지': 'URL',
     }
+    
+    # 실제 데이터 구조를 파악하기 위해 첫 몇 행 출력
+    print("첫 번째 파일 첫 3행 데이터:")
+    print(df.head(3))
+    
+    # 컬럼이 존재하는지 확인하고 매핑
     use_cols = [c for c in col_map if c in df.columns]
-    df = df[use_cols].rename(columns={k: v for k, v in col_map.items() if k in use_cols})
+    if use_cols:
+        df = df[use_cols].rename(columns={k: v for k, v in col_map.items() if k in use_cols})
+    
+    # 누락된 컬럼 추가
     for col in SCHOOL_COLUMNS:
         if col not in df.columns:
             df[col] = '' if col not in ['LATITUDE', 'LONGITUDE'] else 0.0
+    
     df['LATITUDE'] = 0.0
     df['LONGITUDE'] = 0.0
     df = df.drop_duplicates(subset=['NAME', 'CAMPUS'])
@@ -47,24 +59,37 @@ def extract_from_first_file():
 
 def extract_from_second_file():
     df = pd.read_excel(file_path2, header=0)
-    # 컬럼명 매핑 (캡처 참고, 실제 컬럼명에 맞게 조정)
+    print("두 번째 파일 실제 컬럼명:", list(df.columns))  # 디버깅용
+    
+    # 두 번째 파일의 실제 컬럼명에 맞게 매핑
     col_map = {
         '학제': 'TYPE',
-        '시도': 'SIDO',
+        '지역': 'SIDO',
         '학교명': 'NAME',
         '본분교': 'CAMPUS',
         '학교상태': 'STATUS',
-        '설립': 'OWNER',
+        '설립구분': 'OWNER',
         '우편번호': 'POSTAL_CD',
         '주소': 'ADDRESS',
-        '전화번호': 'TEL_NO',
-        '팩스번호': 'FAX_NO',
-        '홈페이지': 'URL',
+        '학교대표\r\n번호': 'TEL_NO',
+        '학교대표\r\n팩스번호': 'FAX_NO',
+        '학교홈페이지': 'URL',
     }
-    df = df[[c for c in col_map if c in df.columns]].rename(columns=col_map)
+    
+    # 실제 데이터 구조를 파악하기 위해 첫 몇 행 출력
+    print("두 번째 파일 첫 3행 데이터:")
+    print(df.head(3))
+    
+    # 컬럼이 존재하는지 확인하고 매핑
+    use_cols = [c for c in col_map if c in df.columns]
+    if use_cols:
+        df = df[use_cols].rename(columns={k: v for k, v in col_map.items() if k in use_cols})
+    
+    # 누락된 컬럼 추가
     for col in SCHOOL_COLUMNS:
         if col not in df.columns:
             df[col] = '' if col not in ['LATITUDE', 'LONGITUDE'] else 0.0
+    
     df['LATITUDE'] = 0.0
     df['LONGITUDE'] = 0.0
     df = df.drop_duplicates(subset=['NAME', 'CAMPUS'])
