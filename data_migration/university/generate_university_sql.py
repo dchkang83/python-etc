@@ -17,6 +17,23 @@ def clean_str(val):
         return ''
     return str(val).replace("'", "''").strip()
 
+def clean_campus(val):
+    """CAMPUS 필드 값을 변환하는 함수"""
+    if pd.isna(val):
+        return ''
+    
+    val_str = str(val).strip()
+    
+    # 본교(제1캠퍼스) -> 본교
+    if val_str == '본교(제1캠퍼스)':
+        return '본교'
+    
+    # 본교(제2캠퍼스), 본교(제3캠퍼스) 등 -> 괄호 안의 텍스트
+    if val_str.startswith('본교(') and val_str.endswith(')'):
+        return val_str[3:-1]  # '본교(' 제거하고 ')' 제거
+    
+    return val_str
+
 def extract_from_first_file():
     # 첫 번째 파일은 11번째 행(인덱스 10)이 실제 헤더
     df = pd.read_excel(file_path1, header=10)
@@ -56,6 +73,8 @@ def extract_from_first_file():
     
     df['LATITUDE'] = 0.0
     df['LONGITUDE'] = 0.0
+    # CAMPUS 필드 정리
+    df['CAMPUS'] = df['CAMPUS'].apply(clean_campus)
     df = df.drop_duplicates(subset=['NAME', 'CAMPUS'])
     return df[SCHOOL_COLUMNS]
 
@@ -94,6 +113,8 @@ def extract_from_second_file():
     
     df['LATITUDE'] = 0.0
     df['LONGITUDE'] = 0.0
+    # CAMPUS 필드 정리
+    df['CAMPUS'] = df['CAMPUS'].apply(clean_campus)
     df = df.drop_duplicates(subset=['NAME', 'CAMPUS'])
     return df[SCHOOL_COLUMNS]
 
