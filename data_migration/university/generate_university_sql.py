@@ -27,12 +27,14 @@ def extract_from_first_file():
     # 첫 번째 파일의 실제 컬럼명에 맞게 매핑
     col_map = {
         '학제': 'TYPE',
-        '대학원 구분\n(부설/\n대학원대학)': 'CAMPUS',  # 본분교 정보
-        '학교명': 'NAME',
         '시도': 'SIDO',
+        '학교명': 'NAME',
+        # '대학원 구분\n(부설/\n대학원대학)': 'CAMPUS',  # 본분교 정보
+        '본분교': 'CAMPUS',  # 본분교 정보
+        '학교상태': 'STATUS',
         '설립': 'OWNER',
-        '주소': 'ADDRESS',
         '우편번호': 'POSTAL_CD',
+        '주소': 'ADDRESS',
         '전화번호': 'TEL_NO',
         '팩스번호': 'FAX_NO',
         '홈페이지': 'URL',
