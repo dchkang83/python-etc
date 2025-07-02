@@ -11,7 +11,7 @@ def generate_subway_insert_sql():
     지하철 엑셀 파일을 읽어서 SUBWAY 테이블 INSERT SQL을 생성하는 함수
     """
     # 파일 경로 설정
-    file_path = "/Users/deokjoonkang/dev/projects/gundam/claude/subway/전체_도시철도역사정보_20250417.xlsx"
+    file_path = "/Users/deokjoonkang/dev/projects/gundam/python/python-etc/data_migration/subway/전체_도시철도역사정보_20250417.xlsx"
     
     try:
         # 파일 존재 여부 확인
