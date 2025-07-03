@@ -1,6 +1,13 @@
 import pandas as pd
 import os
 from datetime import datetime
+import requests
+import time
+import json
+from dotenv import load_dotenv
+
+# .env 파일 로드
+load_dotenv()
 
 # 파일 경로
 file_path1 = "/Users/deokjoonkang/dev/projects/gundam/python/python-etc/data_migration/university/data/24년 하반기 대학 학교별 재적 재학 휴학 외국인유학생 교원_250109H.xlsx"
@@ -11,6 +18,98 @@ SCHOOL_COLUMNS = [
     'TYPE', 'SIDO', 'NAME', 'CAMPUS', 'STATUS', 'OWNER',
     'POSTAL_CD', 'ADDRESS', 'TEL_NO', 'FAX_NO', 'URL', 'LATITUDE', 'LONGITUDE'
 ]
+
+# 카카오 로컬 API 설정
+KAKAO_API_KEY = os.getenv('KAKAO_REST_API_KEY', '')
+KAKAO_LOCAL_API_URL = "https://dapi.kakao.com/v2/local/search/address.json"
+
+def get_coordinates_from_address(address):
+    """
+    카카오 로컬 API를 사용하여 주소로부터 위도, 경도를 조회합니다.
+    
+    Args:
+        address (str): 조회할 주소
+        
+    Returns:
+        tuple: (latitude, longitude) 또는 (0.0, 0.0) if 실패
+    """
+    if not KAKAO_API_KEY:
+        print("⚠️  카카오 REST API 키가 설정되지 않았습니다. 환경변수 KAKAO_REST_API_KEY를 설정해주세요.")
+        return 0.0, 0.0
+    
+    if not address or address.strip() == '':
+        return 0.0, 0.0
+    
+    try:
+        headers = {
+            'Authorization': f'KakaoAK {KAKAO_API_KEY}'
+        }
+        
+        params = {
+            'query': address.strip()
+        }
+        
+        response = requests.get(KAKAO_LOCAL_API_URL, headers=headers, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if data['documents']:
+            # 첫 번째 결과 사용
+            first_result = data['documents'][0]
+            latitude = float(first_result['y'])
+            longitude = float(first_result['x'])
+            print(f"📍 주소 '{address}' -> 좌표: ({latitude}, {longitude})")
+            return latitude, longitude
+        else:
+            print(f"❌ 주소 '{address}'에 대한 좌표를 찾을 수 없습니다.")
+            return 0.0, 0.0
+            
+    except requests.exceptions.RequestException as e:
+        print(f"❌ API 호출 중 오류 발생 (주소: {address}): {str(e)}")
+        return 0.0, 0.0
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        print(f"❌ API 응답 파싱 중 오류 발생 (주소: {address}): {str(e)}")
+        return 0.0, 0.0
+
+def update_coordinates_for_dataframe(df):
+    """
+    DataFrame의 ADDRESS 컬럼을 사용하여 위도, 경도를 업데이트합니다.
+    
+    Args:
+        df (DataFrame): 업데이트할 DataFrame
+        
+    Returns:
+        DataFrame: 위도, 경도가 업데이트된 DataFrame
+    """
+    print(f"\n🗺️  총 {len(df)}개 학교의 주소에서 좌표를 조회합니다...")
+    
+    success_count = 0
+    fail_count = 0
+    
+    for idx, row in df.iterrows():
+        address = row['ADDRESS']
+        if address and address.strip():
+            latitude, longitude = get_coordinates_from_address(address)
+            df.at[idx, 'LATITUDE'] = latitude
+            df.at[idx, 'LONGITUDE'] = longitude
+            
+            if latitude != 0.0 or longitude != 0.0:
+                success_count += 1
+            else:
+                fail_count += 1
+            
+            # API 호출 제한을 위한 딜레이 (초당 10회 제한)
+            time.sleep(0.1)
+        else:
+            print(f"⚠️  인덱스 {idx}: 주소가 비어있습니다.")
+            fail_count += 1
+    
+    print(f"\n✅ 좌표 조회 완료:")
+    print(f"   - 성공: {success_count}개")
+    print(f"   - 실패: {fail_count}개")
+    
+    return df
 
 def clean_str(val):
     if pd.isna(val):
@@ -76,6 +175,10 @@ def extract_from_first_file():
     # CAMPUS 필드 정리
     df['CAMPUS'] = df['CAMPUS'].apply(clean_campus)
     df = df.drop_duplicates(subset=['SIDO', 'NAME', 'CAMPUS'])
+    
+    # 위도, 경도 조회
+    df = update_coordinates_for_dataframe(df)
+    
     return df[SCHOOL_COLUMNS]
 
 def extract_from_second_file():
@@ -116,6 +219,10 @@ def extract_from_second_file():
     # CAMPUS 필드 정리
     df['CAMPUS'] = df['CAMPUS'].apply(clean_campus)
     df = df.drop_duplicates(subset=['SIDO', 'NAME', 'CAMPUS'])
+    
+    # 위도, 경도 조회
+    df = update_coordinates_for_dataframe(df)
+    
     return df[SCHOOL_COLUMNS]
 
 def merge_and_dedup(df1, df2):
