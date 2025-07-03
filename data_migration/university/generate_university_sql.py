@@ -23,9 +23,13 @@ SCHOOL_COLUMNS = [
 KAKAO_API_KEY = os.getenv('KAKAO_REST_API_KEY', '')
 KAKAO_LOCAL_API_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 
+# 주소별 좌표 캐시 (중복 API 호출 방지)
+address_coordinates_cache = {}
+
 def get_coordinates_from_address(address):
     """
     카카오 로컬 API를 사용하여 주소로부터 위도, 경도를 조회합니다.
+    중복 호출을 방지하기 위해 캐시를 사용합니다.
     
     Args:
         address (str): 조회할 주소
@@ -40,13 +44,20 @@ def get_coordinates_from_address(address):
     if not address or address.strip() == '':
         return 0.0, 0.0
     
+    # 캐시에서 확인
+    clean_address = address.strip()
+    if clean_address in address_coordinates_cache:
+        lat, lng = address_coordinates_cache[clean_address]
+        print(f"📋 캐시에서 조회: '{clean_address}' -> 좌표: ({lat}, {lng})")
+        return lat, lng
+    
     try:
         headers = {
             'Authorization': f'KakaoAK {KAKAO_API_KEY}'
         }
         
         params = {
-            'query': address.strip()
+            'query': clean_address
         }
         
         response = requests.get(KAKAO_LOCAL_API_URL, headers=headers, params=params, timeout=10)
@@ -59,17 +70,23 @@ def get_coordinates_from_address(address):
             first_result = data['documents'][0]
             latitude = float(first_result['y'])
             longitude = float(first_result['x'])
-            print(f"📍 주소 '{address}' -> 좌표: ({latitude}, {longitude})")
+            print(f"📍 주소 '{clean_address}' -> 좌표: ({latitude}, {longitude})")
+            
+            # 캐시에 저장
+            address_coordinates_cache[clean_address] = (latitude, longitude)
             return latitude, longitude
         else:
-            print(f"❌ 주소 '{address}'에 대한 좌표를 찾을 수 없습니다.")
+            print(f"❌ 주소 '{clean_address}'에 대한 좌표를 찾을 수 없습니다.")
+            address_coordinates_cache[clean_address] = (0.0, 0.0)
             return 0.0, 0.0
             
     except requests.exceptions.RequestException as e:
-        print(f"❌ API 호출 중 오류 발생 (주소: {address}): {str(e)}")
+        print(f"❌ API 호출 중 오류 발생 (주소: {clean_address}): {str(e)}")
+        address_coordinates_cache[clean_address] = (0.0, 0.0)
         return 0.0, 0.0
     except (KeyError, ValueError, json.JSONDecodeError) as e:
-        print(f"❌ API 응답 파싱 중 오류 발생 (주소: {address}): {str(e)}")
+        print(f"❌ API 응답 파싱 중 오류 발생 (주소: {clean_address}): {str(e)}")
+        address_coordinates_cache[clean_address] = (0.0, 0.0)
         return 0.0, 0.0
 
 def update_coordinates_for_dataframe(df):
@@ -86,10 +103,16 @@ def update_coordinates_for_dataframe(df):
     
     success_count = 0
     fail_count = 0
+    cache_hit_count = 0
     
     for idx, row in df.iterrows():
         address = row['ADDRESS']
-        if address and address.strip():
+        if address and str(address).strip():
+            clean_address = str(address).strip()
+            
+            # 캐시 히트 여부 확인
+            is_cache_hit = clean_address in address_coordinates_cache
+            
             latitude, longitude = get_coordinates_from_address(address)
             df.at[idx, 'LATITUDE'] = latitude
             df.at[idx, 'LONGITUDE'] = longitude
@@ -98,9 +121,13 @@ def update_coordinates_for_dataframe(df):
                 success_count += 1
             else:
                 fail_count += 1
+                
+            if is_cache_hit:
+                cache_hit_count += 1
             
-            # API 호출 제한을 위한 딜레이 (초당 10회 제한)
-            time.sleep(0.1)
+            # API 호출 제한을 위한 딜레이 (캐시 히트가 아닌 경우에만)
+            if not is_cache_hit:
+                time.sleep(0.1)
         else:
             print(f"⚠️  인덱스 {idx}: 주소가 비어있습니다.")
             fail_count += 1
@@ -108,12 +135,19 @@ def update_coordinates_for_dataframe(df):
     print(f"\n✅ 좌표 조회 완료:")
     print(f"   - 성공: {success_count}개")
     print(f"   - 실패: {fail_count}개")
+    print(f"   - 캐시 히트: {cache_hit_count}개")
+    print(f"   - 실제 API 호출: {len(address_coordinates_cache)}개")
     
     return df
 
 def clean_str(val):
+    """다양한 데이터 타입을 안전하게 문자열로 변환합니다."""
     if pd.isna(val):
         return ''
+    if val is None:
+        return ''
+    if isinstance(val, (int, float)):
+        return str(val).strip()
     return str(val).replace("'", "''").strip()
 
 def clean_campus(val):
@@ -226,15 +260,93 @@ def extract_from_second_file():
     return df[SCHOOL_COLUMNS]
 
 def merge_and_dedup(df1, df2):
-    # SIDO, NAME, CAMPUS가 모두 동일한 경우 중복으로 보고 최초 등록된 데이터만 유지
-    merged = pd.concat([df1, df2], ignore_index=True)
-    merged = merged.drop_duplicates(subset=['SIDO', 'NAME', 'CAMPUS'], keep='first')
+    """
+    두 DataFrame을 병합하고 중복을 제거합니다.
+    첫 번째 파일을 우선하되, 위도/경도가 없으면 두 번째 파일에서 보완합니다.
+    
+    Args:
+        df1 (DataFrame): 첫 번째 파일 데이터 (우선)
+        df2 (DataFrame): 두 번째 파일 데이터 (보완용)
+        
+    Returns:
+        DataFrame: 병합된 데이터
+    """
+    print(f"\n🔄 데이터 병합 및 중복 제거 시작...")
+    print(f"   - 첫 번째 파일: {len(df1)}개")
+    print(f"   - 두 번째 파일: {len(df2)}개")
+    
+    # 첫 번째 파일을 기준으로 병합
+    merged = df1.copy()
+    
+    # 두 번째 파일에서 보완할 데이터 찾기
+    supplement_count = 0
+    
+    for idx1, row1 in merged.iterrows():
+        # 위도/경도가 없는 경우에만 보완 시도
+        if (row1['LATITUDE'] == 0.0 and row1['LONGITUDE'] == 0.0) or \
+           (pd.isna(row1['LATITUDE']) and pd.isna(row1['LONGITUDE'])):
+            
+            # 두 번째 파일에서 동일한 학교 찾기
+            matching_rows = df2[
+                (df2['SIDO'] == row1['SIDO']) & 
+                (df2['NAME'] == row1['NAME']) & 
+                (df2['CAMPUS'] == row1['CAMPUS'])
+            ]
+            
+            if not matching_rows.empty:
+                row2 = matching_rows.iloc[0]
+                
+                # 두 번째 파일에 위도/경도가 있으면 보완
+                if (row2['LATITUDE'] != 0.0 or row2['LONGITUDE'] != 0.0) and \
+                   (not pd.isna(row2['LATITUDE']) and not pd.isna(row2['LONGITUDE'])):
+                    
+                    print(f"   🔄 보완: {row1['NAME']} ({row1['CAMPUS']}) - 위도/경도 추가")
+                    
+                    # 위도/경도 보완
+                    merged.at[idx1, 'LATITUDE'] = row2['LATITUDE']
+                    merged.at[idx1, 'LONGITUDE'] = row2['LONGITUDE']
+                    
+                    # 주소와 우편번호도 보완 (첫 번째 파일에 없거나 비어있는 경우)
+                    if not row1['ADDRESS'] or str(row1['ADDRESS']).strip() == '':
+                        merged.at[idx1, 'ADDRESS'] = row2['ADDRESS']
+                        print(f"      📍 주소도 보완: {row2['ADDRESS']}")
+                    
+                    if not row1['POSTAL_CD'] or str(row1['POSTAL_CD']).strip() == '':
+                        merged.at[idx1, 'POSTAL_CD'] = row2['POSTAL_CD']
+                        print(f"      📮 우편번호도 보완: {row2['POSTAL_CD']}")
+                    
+                    supplement_count += 1
+    
+    # 두 번째 파일에서 첫 번째 파일에 없는 학교 추가
+    for idx2, row2 in df2.iterrows():
+        # 첫 번째 파일에 없는 학교인지 확인
+        existing = merged[
+            (merged['SIDO'] == row2['SIDO']) & 
+            (merged['NAME'] == row2['NAME']) & 
+            (merged['CAMPUS'] == row2['CAMPUS'])
+        ]
+        
+        if existing.empty:
+            merged = pd.concat([merged, pd.DataFrame([row2])], ignore_index=True)
+            print(f"   ➕ 추가: {row2['NAME']} ({row2['CAMPUS']}) - 두 번째 파일에서")
+    
+    print(f"\n✅ 데이터 병합 완료:")
+    print(f"   - 최종 데이터: {len(merged)}개")
+    print(f"   - 위도/경도 보완: {supplement_count}개")
+    
     return merged
 
 def generate_school_insert_sql():
     df1 = extract_from_first_file()
     df2 = extract_from_second_file()
     df = merge_and_dedup(df1, df2)
+    
+    # 캐시 통계 출력
+    print(f"\n📊 API 호출 통계:")
+    print(f"   - 고유 주소 수: {len(address_coordinates_cache)}개")
+    print(f"   - 캐시된 좌표 수: {len([v for v in address_coordinates_cache.values() if v != (0.0, 0.0)])}개")
+    print(f"   - 실패한 주소 수: {len([v for v in address_coordinates_cache.values() if v == (0.0, 0.0)])}개")
+    
     output_file = "/Users/deokjoonkang/dev/projects/gundam/python/python-etc/data_migration/university/output/school_insert.sql"
     # 디렉토리 없으면 생성
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
