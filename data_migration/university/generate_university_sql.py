@@ -75,7 +75,7 @@ def extract_from_first_file():
     df['LONGITUDE'] = 0.0
     # CAMPUS 필드 정리
     df['CAMPUS'] = df['CAMPUS'].apply(clean_campus)
-    df = df.drop_duplicates(subset=['NAME', 'CAMPUS'])
+    df = df.drop_duplicates(subset=['SIDO', 'NAME', 'CAMPUS'])
     return df[SCHOOL_COLUMNS]
 
 def extract_from_second_file():
@@ -115,13 +115,13 @@ def extract_from_second_file():
     df['LONGITUDE'] = 0.0
     # CAMPUS 필드 정리
     df['CAMPUS'] = df['CAMPUS'].apply(clean_campus)
-    df = df.drop_duplicates(subset=['NAME', 'CAMPUS'])
+    df = df.drop_duplicates(subset=['SIDO', 'NAME', 'CAMPUS'])
     return df[SCHOOL_COLUMNS]
 
 def merge_and_dedup(df1, df2):
-    # 첫 번째 파일에 없는 (학교명+캠퍼스)만 두 번째 파일에서 추가
+    # SIDO, NAME, CAMPUS가 모두 동일한 경우 중복으로 보고 최초 등록된 데이터만 유지
     merged = pd.concat([df1, df2], ignore_index=True)
-    merged = merged.drop_duplicates(subset=['NAME', 'CAMPUS'], keep='first')
+    merged = merged.drop_duplicates(subset=['SIDO', 'NAME', 'CAMPUS'], keep='first')
     return merged
 
 def generate_school_insert_sql():
